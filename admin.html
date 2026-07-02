@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Miki Studio Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{font-family:'Archivo',sans-serif;color:#141414;background:#f6f4f1;min-height:100vh;-webkit-font-smoothing:antialiased;}
+  ::selection{background:#141414;color:#fff;}
+  @keyframes fade{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  input,textarea,select{font-family:'Archivo',sans-serif;}
+  input[type=text]:focus,input[type=email]:focus,input[type=password]:focus,textarea:focus,select:focus{outline:2px solid #141414;outline-offset:0;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:#f6f4f1;}
+  ::-webkit-scrollbar-thumb{background:#cfccc6;}
+
+  /* hover helpers */
+  .btn-dark{transition:opacity .15s;}
+  .btn-dark:hover{opacity:.85;}
+  .btn-sm-dark:hover{opacity:.8;}
+  .btn-ghost{transition:background .15s;}
+  .btn-ghost:hover{background:#f0ede9;}
+  .addrow:hover{background:#f6f4f1;}
+  .quicklink{transition:background .15s;}
+  .quicklink:hover{background:#ececec;}
+  tr.hoverable{transition:background .12s;}
+  tr.hoverable:hover{background:#fafaf9;}
+  .logout:hover{color:#f3f1ee !important;}
+  .del-x:hover{color:#c0392b !important;}
+  .img-remove:hover{background:#c0392b !important;}
+  .testi-del:hover{border-color:#c0392b !important;color:#c0392b !important;}
+  .faq-del:hover{color:#c0392b !important;}
+  .navbtn{transition:background .12s;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./supabase-config.js"></script>
+<script>
+/* ======================= STORAGE ======================= */
+var LS = {
+  PW:'miki-admin-pw', PRICE:'miki-pricing', COURSES:'miki-courses', FAQ:'miki-faq',
+  TESTI:'miki-testimonials', SETTINGS:'miki-settings', BOOKINGS:'miki-bookings',
+  IMG:'miki-img-overrides', AUTH:'miki-admin-auth'
+};
+function ls(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
+function ss(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function getPw(){ return ls(LS.PW) || 'miki2026'; }
+function getImgOverrides(){ return ls(LS.IMG) || {}; }
+
+/* ======================= SUPABASE BACKEND ======================= */
+var SB = window.SB || null;
+var BUCKET = window.MIKI_BUCKET || 'site-images';
+function getImages(){ return SB ? (state.images || {}) : getImgOverrides(); }
+
+async function pushContent(key, data){
+  if(!SB) return;
+  try { await SB.from('site_content').upsert({ key:key, data:data, updated_at:new Date().toISOString() }, { onConflict:'key' }); }
+  catch(e){ console.warn('pushContent lỗi', key, e); }
+}
+async function loadAdminData(){
+  if(!SB) return;
+  try {
+    var c = await SB.from('site_content').select('key,data');
+    if(!c.error && c.data){
+      var m = {}; c.data.forEach(function(r){ m[r.key] = r.data; });
+      if(Array.isArray(m.pricing)) state.pricing = m.pricing;
+      if(Array.isArray(m.courses)) state.courses = m.courses;
+      if(Array.isArray(m.faq)) state.faqs = m.faq;
+      if(Array.isArray(m.testimonials)) state.testimonials = m.testimonials;
+      if(m.settings && typeof m.settings === 'object') state.settings = Object.assign({}, state.settings, m.settings);
+      state.images = m.images || {};
+    }
+    var b = await SB.from('bookings').select('*').order('created_at', { ascending:false });
+    if(!b.error && b.data) state.bookings = b.data;
+    render();
+  } catch(e){ console.warn('loadAdminData lỗi', e); }
+}
+
+function escA(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escH(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ======================= DEFAULT DATA ======================= */
+var defaultBookings = [
+  { id:1, name:'Nguyễn Thu Hà', phone:'0912345678', svc:'Makeup cô dâu 1 look', date:'15/07/2026', status:'Chờ xác nhận' },
+  { id:2, name:'Lê Minh Châu', phone:'0987654321', svc:'Makeup tiệc theo yêu cầu', date:'18/07/2026', status:'Đã xác nhận' },
+  { id:3, name:'Trần Lan Anh', phone:'0909090909', svc:'Glow Transform', date:'22/07/2026', status:'Hoàn thành' },
+];
+var defaultProducts = [
+  { name:'Cọ makeup cá nhân', catLabel:'Dụng cụ Makeup', price:'320.000' },
+  { name:'Bông mút tán nền (set 4)', catLabel:'Dụng cụ Makeup', price:'90.000' },
+  { name:'Kem nền lì lâu trôi 30ml', catLabel:'Mĩ phẩm Nền', price:'520.000' },
+  { name:'Phấn phủ kiềm dầu', catLabel:'Phấn phủ · má · mắt', price:'340.000' },
+  { name:'Son lì velvet', catLabel:'Son', price:'250.000' },
+  { name:'Serum cấp ẩm HA', catLabel:'Dưỡng da', price:'390.000' },
+];
+var defaultPricing = [
+  { no:'01', title:'Dịch vụ lẻ', rows:[{label:'Tỉa & kẻ chân mày',note:'Định khung, hợp dáng mặt',price:'80.000đ'},{label:'Gắn mi giả',note:'Theo cụm hoặc cả dải',price:'80.000đ'},{label:'Makeup mắt',note:'Chỉ làm phần mắt & mi',price:'150.000đ'},{label:'Makeup nền & khối',note:'Lót – nền – che khuyết điểm',price:'250.000đ'},{label:'Dặm lại / chỉnh makeup',note:'Cứu cánh giữa buổi tiệc',price:'100.000đ'},{label:'Tư vấn tông & thử son',note:'Chọn màu hợp da',price:'Miễn phí'}]},
+  { no:'02', title:'Makeup hoàn chỉnh', rows:[{label:'Makeup cá nhân',note:'Đi tiệc / sự kiện / hẹn',price:'400.000đ'},{label:'Makeup + làm tóc nhẹ',note:'Búi / uốn / tạo nếp',price:'500.000đ'},{label:'Makeup tiệc / layout theo yêu cầu',note:'Makeup full + tóc nhẹ',price:'650.000đ'},{label:'Makeup nhóm kỷ yếu, sự kiện',note:'Tính theo người',price:'350.000đ/người'}]},
+  { no:'03', title:'Gói cao cấp', rows:[{label:'Makeup cô dâu 1 look + thử trước',note:'',price:'từ 2.000.000đ'},{label:'Chụp ảnh concept',note:'Makeup theo bộ ảnh',price:'từ 1.500.000đ'},{label:'Cô dâu trọn ngày LUXURY',note:'Nhiều look + tóc + ekip',price:'từ 5.000.000đ'}]},
+];
+var defaultCourses = [
+  { name:'Glow Starter', track:'personal', level:'Cơ bản', dur:'3 buổi · 1-1 hoặc nhóm nhỏ', price:'1.500.000', desc:'Khởi đầu nhẹ nhàng — tự tin makeup mỗi ngày cho chính mình.' },
+  { name:'Glow Transform', track:'personal', level:'Nâng cao', dur:'5 buổi · 1-1 hoặc nhóm nhỏ', price:'2.500.000', desc:'Nâng tầm phong cách — makeup hợp gương mặt và cá tính riêng.' },
+  { name:'Glow Pro', track:'personal', level:'Cá nhân chuyên nghiệp', dur:'8 buổi · 1-1 hoặc nhóm nhỏ', price:'3.000.000', desc:'Trọn bộ kỹ năng cho người muốn makeup ở mức chuyên nghiệp.' },
+  { name:'Makeup Chuyên nghiệp', track:'pro', level:'Theo nghề', dur:'Lộ trình theo nghề', price:'20.000.000', desc:'Lộ trình đào tạo để theo nghề Makeup Artist.' },
+];
+var defaultTestimonials = [
+  { name:'Thu Hà', role:'Cô dâu', text:'Miki trang điểm cho ngày cưới của mình cực kỳ tự nhiên và giữ lớp nền suốt cả ngày dài. Mình rất hài lòng!' },
+  { name:'Lan Anh', role:'Học viên lớp makeup', text:'Lớp makeup cá nhân giúp mình tự tin tự trang điểm đi làm mỗi ngày. Cô dạy rất tận tâm và dễ hiểu.' },
+  { name:'Minh Châu', role:'Khách dự tiệc', text:'Đặt lịch dễ, đúng giờ, phong cách makeup sang và rất hợp gương mặt mình. Chắc chắn sẽ quay lại!' },
+];
+var defaultFaqs = [
+  { q:'Tôi nên đặt lịch trước bao lâu?', a:'Với dịch vụ dự tiệc, bạn nên đặt trước 3–5 ngày. Riêng makeup cô dâu nên giữ lịch trước 1–3 tháng.' },
+  { q:'Studio có nhận trang điểm tận nơi không?', a:'Có. Miki nhận di chuyển trong nội thành Hà Nội miễn phí. Ngoại thành tính thêm phí di chuyển.' },
+  { q:'Cần đặt cọc bao nhiêu để giữ lịch?', a:'Bạn giữ lịch bằng khoản cọc 30% giá trị gói dịch vụ.' },
+  { q:'Mỹ phẩm sử dụng có an toàn cho da nhạy cảm không?', a:'Toàn bộ sản phẩm đều chính hãng và dụng cụ được vệ sinh kỹ trước mỗi buổi.' },
+];
+var defaultSettings = { name:'Miki Makeup Studio', phone:'0945 88 66 44', email:'hello@mikimakeup.vn', address:'Quận Ba Đình, Hà Nội', instagram:'', facebook:'', tiktok:'' };
+
+var imgGroupsDef = [
+  { id:'hero', group:'Trang chủ', label:'Ảnh Hero', desc:'Ảnh lớn bên phải tiêu đề trang chủ' },
+  { id:'artist', group:'Trang chủ', label:'Chân dung Miki Tran', desc:'Ảnh trong mục giới thiệu artist' },
+  { id:'prodcover', group:'Sản phẩm', label:'Ảnh bìa trang sản phẩm', desc:'Banner đầu trang Sản phẩm' },
+  { id:'look-0', group:'Lookbook', label:'Lookbook 1', desc:'' },
+  { id:'look-1', group:'Lookbook', label:'Lookbook 2', desc:'' },
+  { id:'look-2', group:'Lookbook', label:'Lookbook 3', desc:'' },
+  { id:'look-3', group:'Lookbook', label:'Lookbook 4', desc:'' },
+  { id:'look-4', group:'Lookbook', label:'Lookbook 5', desc:'' },
+  { id:'look-5', group:'Lookbook', label:'Lookbook 6', desc:'' },
+  { id:'ba-before-0', group:'Trước · Sau', label:'Cô dâu — Trước', desc:'' },
+  { id:'ba-after-0', group:'Trước · Sau', label:'Cô dâu — Sau', desc:'' },
+  { id:'ba-before-1', group:'Trước · Sau', label:'Makeup tiệc — Trước', desc:'' },
+  { id:'ba-after-1', group:'Trước · Sau', label:'Makeup tiệc — Sau', desc:'' },
+  { id:'ba-before-2', group:'Trước · Sau', label:'Kỷ yếu — Trước', desc:'' },
+  { id:'ba-after-2', group:'Trước · Sau', label:'Kỷ yếu — Sau', desc:'' },
+];
+
+var settingsFields = [
+  {key:'name',label:'Tên studio'},{key:'phone',label:'Số điện thoại'},{key:'email',label:'Email'},{key:'address',label:'Địa chỉ'},{key:'instagram',label:'Instagram URL'},{key:'facebook',label:'Facebook URL'},{key:'tiktok',label:'TikTok URL'},
+];
+
+var navDef = [
+  {id:'dash',icon:'◻',label:'Dashboard'},
+  {id:'bookings',icon:'📋',label:'Đơn đặt lịch'},
+  {id:'products',icon:'🛍',label:'Sản phẩm'},
+  {id:'pricing',icon:'💲',label:'Bảng giá'},
+  {id:'courses',icon:'🎓',label:'Khóa học'},
+  {id:'testimonials',icon:'★',label:'Đánh giá'},
+  {id:'faq',icon:'❓',label:'FAQ'},
+  {id:'images',icon:'🖼',label:'Hình ảnh'},
+  {id:'settings',icon:'⚙',label:'Cài đặt'},
+];
+
+/* ======================= STATE ======================= */
+var state = {
+  page: (window.SB ? 'login' : (localStorage.getItem(LS.AUTH) === 'ok' ? 'dash' : 'login')),
+  loginErr:false, pwSaved:false, savedMsg:false, savedTimer:null,
+  bookings: ls(LS.BOOKINGS) || defaultBookings,
+  products: defaultProducts.slice(),
+  pricing: ls(LS.PRICE) || defaultPricing,
+  courses: ls(LS.COURSES) || defaultCourses,
+  testimonials: ls(LS.TESTI) || defaultTestimonials,
+  faqs: ls(LS.FAQ) || defaultFaqs,
+  settings: ls(LS.SETTINGS) || defaultSettings,
+  images: ls(LS.IMG) || {},
+};
+
+function flash(){
+  if(state.savedTimer) clearTimeout(state.savedTimer);
+  state.savedMsg = true;
+  state.savedTimer = setTimeout(function(){ state.savedMsg=false; render(); }, 2400);
+  render();
+}
+function statusStyle(st){
+  var base='display:inline-block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;';
+  if(st==='Đã xác nhận') return base+'background:#e8f5e9;color:#2e7d32;';
+  if(st==='Hoàn thành') return base+'background:#e3f2fd;color:#1565c0;';
+  return base+'background:#fff8e1;color:#f57f17;';
+}
+var savedSpan = '<span style="margin-left:16px;font-size:13px;color:#27ae60;">✓ Đã lưu</span>';
+
+/* ======================= ACTIONS ======================= */
+async function doLogin(e){
+  if(e && e.preventDefault) e.preventDefault();
+  if(SB){
+    var email = (document.getElementById('emailInput')||{}).value || '';
+    var pw = document.getElementById('pwInput').value;
+    var res = await SB.auth.signInWithPassword({ email:email, password:pw });
+    if(res.error){ state.loginErr=true; render(); return; }
+    state.page='dash'; state.loginErr=false; render();
+    loadAdminData();
+    return;
+  }
+  var v = document.getElementById('pwInput').value;
+  if(v === getPw()){ localStorage.setItem(LS.AUTH,'ok'); state.page='dash'; state.loginErr=false; }
+  else { state.loginErr=true; }
+  render();
+}
+async function doLogout(){
+  if(SB){ try { await SB.auth.signOut(); } catch(e){} }
+  localStorage.removeItem(LS.AUTH); state.page='login'; state.loginErr=false; render();
+}
+function nav(p){ state.page=p; state.savedMsg=false; render(); }
+async function changePw(){
+  var v = document.getElementById('newPwInput').value;
+  if(!v) return;
+  if(SB){
+    var r = await SB.auth.updateUser({ password:v });
+    if(r.error){ alert('Lỗi đổi mật khẩu: ' + r.error.message); return; }
+  } else {
+    ss(LS.PW, v);
+  }
+  document.getElementById('newPwInput').value='';
+  state.pwSaved=true; render();
+  setTimeout(function(){ state.pwSaved=false; render(); }, 2400);
+}
+
+/* bookings */
+async function confirmBk(id){
+  if(SB){ try { await SB.from('bookings').update({ status:'Đã xác nhận' }).eq('id', id); } catch(e){} }
+  state.bookings = state.bookings.map(function(b){ return b.id===id ? Object.assign({},b,{status:'Đã xác nhận'}) : b; });
+  ss(LS.BOOKINGS,state.bookings); render();
+}
+async function deleteBk(id){
+  if(SB){ try { await SB.from('bookings').delete().eq('id', id); } catch(e){} }
+  state.bookings = state.bookings.filter(function(b){ return b.id!==id; });
+  ss(LS.BOOKINGS,state.bookings); render();
+}
+async function addBooking(){
+  if(SB){
+    try {
+      var ins = await SB.from('bookings').insert({ name:'Khách mới', phone:'', svc:'', date:'', status:'Chờ xác nhận' }).select();
+      if(!ins.error && ins.data && ins.data[0]){ state.bookings = [ins.data[0]].concat(state.bookings); render(); return; }
+    } catch(e){}
+  }
+  state.bookings = [{id:Date.now(),name:'Khách mới',phone:'',svc:'',date:'',status:'Chờ xác nhận'}].concat(state.bookings);
+  ss(LS.BOOKINGS,state.bookings); render();
+}
+
+/* products */
+function addProduct(){ state.products = [{name:'Sản phẩm mới',catLabel:'Danh mục',price:'0'}].concat(state.products); render(); }
+function deleteProduct(i){ state.products = state.products.filter(function(_,pi){ return pi!==i; }); render(); }
+
+/* pricing */
+function updatePriceRow(gi,ri,field,val){ state.pricing[gi].rows[ri][field] = val; }
+function deletePriceRow(gi,ri){ state.pricing[gi].rows.splice(ri,1); render(); }
+function addPriceRow(gi){ state.pricing[gi].rows.push({label:'',note:'',price:''}); render(); }
+function savePricing(){ ss(LS.PRICE,state.pricing); pushContent('pricing',state.pricing); flash(); }
+
+/* courses */
+function updateCourse(i,field,val){ state.courses[i][field] = val; }
+function saveCourses(){ ss(LS.COURSES,state.courses); pushContent('courses',state.courses); flash(); }
+
+/* testimonials */
+function addTestimonial(){ state.testimonials.push({name:'',role:'',text:''}); render(); }
+function updateTestimonial(i,field,val){ state.testimonials[i][field] = val; }
+function deleteTestimonial(i){ state.testimonials.splice(i,1); render(); }
+function saveTestimonials(){ ss(LS.TESTI,state.testimonials); pushContent('testimonials',state.testimonials); flash(); }
+
+/* faq */
+function addFaq(){ state.faqs.push({q:'',a:''}); render(); }
+function updateFaq(i,field,val){ state.faqs[i][field] = val; }
+function deleteFaq(i){ state.faqs.splice(i,1); render(); }
+function saveFaq(){ ss(LS.FAQ,state.faqs); pushContent('faq',state.faqs); flash(); }
+
+/* settings */
+function updateSetting(k,val){ state.settings[k] = val; }
+function saveSettings(){ ss(LS.SETTINGS,state.settings); pushContent('settings',state.settings); flash(); }
+
+/* images */
+function uploadImage(key){
+  var input = document.createElement('input');
+  input.type='file'; input.accept='image/*';
+  input.onchange = async function(ev){
+    var f = ev.target.files && ev.target.files[0]; if(!f) return;
+    if(SB){
+      try {
+        var ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+        var path = key + '-' + Date.now() + '.' + ext;
+        var up = await SB.storage.from(BUCKET).upload(path, f, { upsert:true, cacheControl:'3600' });
+        if(up.error){ alert('Lỗi tải ảnh: ' + up.error.message); return; }
+        var url = SB.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+        state.images = Object.assign({}, state.images, {}); state.images[key] = url;
+        await pushContent('images', state.images);
+        render();
+      } catch(e){ alert('Lỗi tải ảnh: ' + e.message); }
+    } else {
+      var rd = new FileReader();
+      rd.onload = function(){ var ov = Object.assign({}, getImgOverrides()); ov[key] = rd.result; ss(LS.IMG,ov); render(); };
+      rd.readAsDataURL(f);
+    }
+  };
+  input.click();
+}
+async function removeImage(key){
+  if(SB){
+    state.images = Object.assign({}, state.images); delete state.images[key];
+    await pushContent('images', state.images);
+    render();
+  } else {
+    var ov = Object.assign({}, getImgOverrides()); delete ov[key]; ss(LS.IMG,ov); render();
+  }
+}
+
+/* ======================= VIEWS ======================= */
+function loginHTML(){
+  return '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#141414;">'
+    + '<div style="background:#fff;width:100%;max-width:400px;padding:48px;animation:fade .4s ease both;">'
+    + '<div style="margin-bottom:36px;text-align:center;">'
+    + '<div style="font-family:\'Playfair Display\',serif;font-size:32px;font-weight:700;">Miki</div>'
+    + '<div style="font-size:10px;letter-spacing:.4em;text-transform:uppercase;color:#8a8784;margin-top:4px;">Studio Admin</div>'
+    + '</div>'
+    + '<form onsubmit="doLogin(event)" style="display:grid;gap:18px;">'
+    + (SB ? ('<label style="display:grid;gap:8px;">'
+        + '<span style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a8784;">Email</span>'
+        + '<input id="emailInput" type="email" placeholder="admin@studio.vn" required style="border:none;border-bottom:1.5px solid #cfccc6;padding:11px 2px;font-size:16px;background:none;" />'
+        + '</label>') : '')
+    + '<label style="display:grid;gap:8px;">'
+    + '<span style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a8784;">Mật khẩu</span>'
+    + '<input id="pwInput" type="password" placeholder="••••••••" required style="border:none;border-bottom:1.5px solid #cfccc6;padding:11px 2px;font-size:16px;background:none;" />'
+    + '</label>'
+    + (state.loginErr ? ('<div style="font-size:13px;color:#c0392b;">' + (SB ? 'Email hoặc mật khẩu không đúng.' : 'Mật khẩu không đúng. Thử lại.') + '</div>') : '')
+    + '<button type="submit" class="btn-dark" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:16px;margin-top:6px;">Đăng nhập</button>'
+    + '</form>'
+    + (SB ? '<div style="margin-top:22px;text-align:center;font-size:12px;color:#bdb9b2;">Đăng nhập bằng tài khoản Supabase của bạn</div>'
+          : '<div style="margin-top:22px;text-align:center;font-size:12px;color:#bdb9b2;">Mật khẩu mặc định: <strong>miki2026</strong></div>')
+    + '</div></div>';
+}
+
+function sidebarHTML(){
+  var pendingCount = state.bookings.filter(function(b){ return b.status==='Chờ xác nhận'; }).length;
+  var items = navDef.map(function(n){
+    var active = state.page===n.id;
+    var st = active
+      ? 'background:rgba(255,255,255,.12);border:none;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 22px;width:100%;color:#fff;font-family:Archivo,sans-serif;font-size:13px;letter-spacing:.06em;'
+      : 'background:none;border:none;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 22px;width:100%;color:#9a948c;font-family:Archivo,sans-serif;font-size:13px;letter-spacing:.06em;';
+    var badge = (n.id==='bookings' && pendingCount>0) ? '<span style="margin-left:auto;background:#fff;color:#141414;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;">'+pendingCount+'</span>' : '';
+    return '<button class="navbtn" onclick="nav(\''+n.id+'\')" style="'+st+'">'
+      + '<span style="font-size:16px;line-height:1;">'+n.icon+'</span><span>'+escH(n.label)+'</span>'+badge+'</button>';
+  }).join('');
+  return '<aside style="width:240px;flex-shrink:0;background:#141414;color:#f3f1ee;display:flex;flex-direction:column;min-height:100vh;position:sticky;top:0;height:100vh;overflow:auto;">'
+    + '<div style="padding:28px 22px 20px;border-bottom:1px solid #2c2c2c;">'
+    + '<div style="font-family:\'Playfair Display\',serif;font-size:26px;font-weight:700;">Miki</div>'
+    + '<div style="font-size:9px;letter-spacing:.38em;text-transform:uppercase;color:#7c7a76;margin-top:4px;">Studio Admin</div>'
+    + '</div>'
+    + '<nav style="padding:12px 0;flex:1;">'+items+'</nav>'
+    + '<div style="padding:18px 22px;border-top:1px solid #2c2c2c;">'
+    + '<button class="logout" onclick="doLogout()" style="background:none;border:none;color:#7c7a76;cursor:pointer;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:0;transition:color .15s;">← Đăng xuất</button>'
+    + '</div></aside>';
+}
+
+function pageHeader(kicker, title){
+  return '<div style="margin-bottom:32px;"><div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#8a8784;margin-bottom:10px;">'+escH(kicker)+'</div><h1 style="font-family:\'Playfair Display\',serif;font-size:36px;font-weight:600;margin:0;">'+escH(title)+'</h1></div>';
+}
+function pageHeaderBtn(kicker, title, btnLabel, btnAction){
+  return '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:14px;">'
+    + '<div><div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#8a8784;margin-bottom:10px;">'+escH(kicker)+'</div><h1 style="font-family:\'Playfair Display\',serif;font-size:36px;font-weight:600;margin:0;">'+escH(title)+'</h1></div>'
+    + (btnLabel ? '<button class="btn-dark" onclick="'+btnAction+'" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.14em;text-transform:uppercase;padding:13px 22px;">'+escH(btnLabel)+'</button>' : '')
+    + '</div>';
+}
+function th(label){ return '<th style="text-align:left;padding:14px 18px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;">'+escH(label)+'</th>'; }
+
+function dashHTML(){
+  var stats = [
+    {label:'Đơn đặt lịch', val:state.bookings.length},
+    {label:'Chờ xác nhận', val:state.bookings.filter(function(b){ return b.status==='Chờ xác nhận'; }).length},
+    {label:'Sản phẩm', val:state.products.length},
+    {label:'Khóa học', val:state.courses.length},
+  ];
+  var statsHTML = stats.map(function(st){
+    return '<div style="background:#fff;padding:24px;border:1px solid #e6e3de;">'
+      + '<div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a8784;margin-bottom:12px;">'+escH(st.label)+'</div>'
+      + '<div style="font-family:\'Playfair Display\',serif;font-size:38px;font-weight:600;line-height:1;">'+st.val+'</div></div>';
+  }).join('');
+  var orders = state.bookings.slice(0,5).map(function(o){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f0ede9;gap:12px;">'
+      + '<div><div style="font-size:14px;font-weight:600;">'+escH(o.name)+'</div><div style="font-size:12px;color:#8a8784;margin-top:3px;">'+escH(o.svc)+'</div></div>'
+      + '<span style="'+statusStyle(o.status)+'">'+escH(o.status)+'</span></div>';
+  }).join('');
+  var quick = [
+    {icon:'📋',label:'Xem đơn đặt lịch',id:'bookings'},
+    {icon:'💲',label:'Chỉnh bảng giá',id:'pricing'},
+    {icon:'🛍',label:'Quản lý sản phẩm',id:'products'},
+    {icon:'🎓',label:'Chỉnh khóa học',id:'courses'},
+    {icon:'⚙',label:'Cài đặt studio',id:'settings'},
+  ].map(function(ql){
+    return '<button class="quicklink" onclick="nav(\''+ql.id+'\')" style="background:#f6f4f1;border:none;cursor:pointer;text-align:left;padding:13px 16px;font-size:13px;font-family:Archivo,sans-serif;display:flex;align-items:center;gap:10px;">'
+      + '<span>'+ql.icon+'</span><span>'+escH(ql.label)+'</span></button>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + pageHeader('Tổng quan','Dashboard')
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:36px;">'+statsHTML+'</div>'
+    + '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:24px;">'
+    + '<div style="background:#fff;border:1px solid #e6e3de;padding:28px;">'
+    + '<div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#8a8784;margin-bottom:18px;">Đơn đặt lịch gần đây</div>'+orders+'</div>'
+    + '<div style="background:#fff;border:1px solid #e6e3de;padding:28px;">'
+    + '<div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#8a8784;margin-bottom:18px;">Truy cập nhanh</div>'
+    + '<div style="display:flex;flex-direction:column;gap:10px;">'+quick+'</div></div>'
+    + '</div></div>';
+}
+
+function bookingsHTML(){
+  var rows = state.bookings.map(function(bk){
+    return '<tr class="hoverable" style="border-bottom:1px solid #f0ede9;">'
+      + '<td style="padding:14px 18px;"><div style="font-weight:600;">'+escH(bk.name)+'</div><div style="font-size:12px;color:#8a8784;">'+escH(bk.phone)+'</div></td>'
+      + '<td style="padding:14px 18px;color:#56544f;">'+escH(bk.svc)+'</td>'
+      + '<td style="padding:14px 18px;color:#56544f;">'+escH(bk.date)+'</td>'
+      + '<td style="padding:14px 18px;"><span style="'+statusStyle(bk.status)+'">'+escH(bk.status)+'</span></td>'
+      + '<td style="padding:14px 18px;display:flex;gap:8px;">'
+      + '<button class="btn-sm-dark" onclick="confirmBk('+bk.id+')" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:11px;padding:7px 12px;transition:opacity .15s;">Xác nhận</button>'
+      + '<button class="btn-ghost" onclick="deleteBk('+bk.id+')" style="background:#fff;color:#141414;border:1px solid #cfccc6;cursor:pointer;font-size:11px;padding:7px 12px;">Xoá</button>'
+      + '</td></tr>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + pageHeaderBtn('Quản lý','Đơn đặt lịch','+ Thêm đơn','addBooking()')
+    + '<div style="background:#fff;border:1px solid #e6e3de;overflow:auto;">'
+    + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+    + '<thead><tr style="border-bottom:2px solid #141414;">'+th('Khách hàng')+th('Dịch vụ')+th('Ngày hẹn')+th('Trạng thái')+th('Thao tác')+'</tr></thead>'
+    + '<tbody>'+rows+'</tbody></table></div></div>';
+}
+
+function productsHTML(){
+  var rows = state.products.map(function(ap,i){
+    return '<tr class="hoverable" style="border-bottom:1px solid #f0ede9;">'
+      + '<td style="padding:14px 18px;font-weight:600;">'+escH(ap.name)+'</td>'
+      + '<td style="padding:14px 18px;color:#56544f;">'+escH(ap.catLabel)+'</td>'
+      + '<td style="padding:14px 18px;font-family:\'Playfair Display\',serif;font-size:15px;">'+escH(ap.price)+'đ</td>'
+      + '<td style="padding:14px 18px;display:flex;gap:8px;">'
+      + '<button class="btn-sm-dark" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:11px;padding:7px 12px;transition:opacity .15s;">Sửa</button>'
+      + '<button class="btn-ghost" onclick="deleteProduct('+i+')" style="background:#fff;color:#141414;border:1px solid #cfccc6;cursor:pointer;font-size:11px;padding:7px 12px;">Xoá</button>'
+      + '</td></tr>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + pageHeaderBtn('Quản lý','Sản phẩm','+ Thêm sản phẩm','addProduct()')
+    + '<div style="background:#fff;border:1px solid #e6e3de;overflow:auto;">'
+    + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+    + '<thead><tr style="border-bottom:2px solid #141414;">'+th('Tên sản phẩm')+th('Danh mục')+th('Giá')+th('Thao tác')+'</tr></thead>'
+    + '<tbody>'+rows+'</tbody></table></div></div>';
+}
+
+function priceTh(label){ return '<th style="text-align:left;padding:10px 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;">'+escH(label)+'</th>'; }
+function pricingHTML(){
+  var groups = state.pricing.map(function(grp,gi){
+    var rows = grp.rows.map(function(row,ri){
+      var inp = function(field,extra){
+        return '<input type="text" value="'+escA(row[field])+'" onchange="updatePriceRow('+gi+','+ri+',\''+field+'\',this.value)" style="border:none;border-bottom:1px solid #e6e3de;width:100%;font-size:14px;padding:4px 2px;background:none;'+(extra||'')+'" />';
+      };
+      return '<tr style="border-bottom:1px solid #f0ede9;">'
+        + '<td style="padding:9px 8px;">'+inp('label')+'</td>'
+        + '<td style="padding:9px 8px;">'+inp('note','color:#8a8784;')+'</td>'
+        + '<td style="padding:9px 8px;">'+inp('price')+'</td>'
+        + '<td style="padding:9px 8px;text-align:right;"><button class="del-x" onclick="deletePriceRow('+gi+','+ri+')" style="background:none;border:none;cursor:pointer;font-size:18px;color:#cfccc6;padding:0;transition:color .15s;">×</button></td>'
+        + '</tr>';
+    }).join('');
+    return '<div style="background:#fff;border:1px solid #e6e3de;padding:26px 28px;margin-bottom:20px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">'
+      + '<div><span style="font-family:\'Playfair Display\',serif;font-size:20px;color:#cfccc6;margin-right:12px;">'+escH(grp.no)+'</span><span style="font-size:17px;font-weight:600;">'+escH(grp.title)+'</span></div>'
+      + '<button class="addrow" onclick="addPriceRow('+gi+')" style="background:none;border:1px solid #cfccc6;cursor:pointer;font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:8px 14px;transition:background .15s;">+ Thêm dòng</button>'
+      + '</div>'
+      + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+      + '<thead><tr style="border-bottom:1.5px solid #141414;">'+priceTh('Tên dịch vụ')+priceTh('Ghi chú')+priceTh('Giá')+'<th style="padding:10px 8px;"></th></tr></thead>'
+      + '<tbody>'+rows+'</tbody></table></div>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + pageHeader('Quản lý','Bảng giá')
+    + groups
+    + '<button class="btn-dark" onclick="savePricing()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;">Lưu bảng giá</button>'
+    + (state.savedMsg ? savedSpan : '')
+    + '</div>';
+}
+
+function coursesHTML(){
+  var cards = state.courses.map(function(co,i){
+    function field(label, key, extra){
+      return '<label style="display:grid;gap:6px;"><span style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#8a8784;">'+escH(label)+'</span>'
+        + '<input type="text" value="'+escA(co[key])+'" onchange="updateCourse('+i+',\''+key+'\',this.value)" style="border:none;border-bottom:1.5px solid #e6e3de;padding:9px 2px;font-size:15px;background:none;'+(extra||'')+'" /></label>';
+    }
+    return '<div style="background:#fff;border:1px solid #e6e3de;padding:26px 28px;margin-bottom:18px;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">'
+      + field('Tên khóa','name','font-weight:600;')
+      + field('Giá (VD: 1.500.000)','price')
+      + field('Thời lượng','dur','font-size:14px;')
+      + field('Nhóm (personal/pro)','track','font-size:14px;')
+      + '</div>'
+      + '<label style="display:grid;gap:6px;"><span style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#8a8784;">Mô tả</span>'
+      + '<textarea rows="2" onchange="updateCourse('+i+',\'desc\',this.value)" style="border:none;border-bottom:1.5px solid #e6e3de;padding:9px 2px;font-size:14px;background:none;resize:none;font-family:Archivo,sans-serif;">'+escH(co.desc)+'</textarea></label>'
+      + '</div>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:14px;"><div><div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#8a8784;margin-bottom:10px;">Quản lý</div><h1 style="font-family:\'Playfair Display\',serif;font-size:36px;font-weight:600;margin:0;">Khóa học</h1></div></div>'
+    + cards
+    + '<button class="btn-dark" onclick="saveCourses()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;">Lưu khóa học</button>'
+    + (state.savedMsg ? savedSpan : '')
+    + '</div>';
+}
+
+function testimonialsHTML(){
+  var cards = state.testimonials.map(function(t,i){
+    return '<div style="background:#fff;border:1px solid #e6e3de;padding:22px 20px;display:flex;flex-direction:column;gap:12px;">'
+      + '<label style="display:grid;gap:5px;"><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Tên</span><input type="text" value="'+escA(t.name)+'" onchange="updateTestimonial('+i+',\'name\',this.value)" style="border:none;border-bottom:1px solid #e6e3de;padding:7px 2px;font-size:14px;font-weight:600;background:none;" /></label>'
+      + '<label style="display:grid;gap:5px;"><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Nhãn (VD: Cô dâu)</span><input type="text" value="'+escA(t.role)+'" onchange="updateTestimonial('+i+',\'role\',this.value)" style="border:none;border-bottom:1px solid #e6e3de;padding:7px 2px;font-size:13px;background:none;color:#8a8784;" /></label>'
+      + '<label style="display:grid;gap:5px;flex:1;"><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Nội dung</span><textarea rows="3" onchange="updateTestimonial('+i+',\'text\',this.value)" style="border:none;border-bottom:1px solid #e6e3de;padding:7px 2px;font-size:14px;background:none;resize:none;font-family:Archivo,sans-serif;line-height:1.6;">'+escH(t.text)+'</textarea></label>'
+      + '<button class="testi-del" onclick="deleteTestimonial('+i+')" style="background:none;border:1px solid #f0ede9;cursor:pointer;font-size:11px;color:#8a8784;padding:7px;text-align:center;transition:all .15s;">Xoá</button>'
+      + '</div>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + pageHeaderBtn('Quản lý','Đánh giá khách hàng','+ Thêm đánh giá','addTestimonial()')
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;">'+cards+'</div>'
+    + '<button class="btn-dark" onclick="saveTestimonials()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;margin-top:22px;">Lưu đánh giá</button>'
+    + (state.savedMsg ? savedSpan : '')
+    + '</div>';
+}
+
+function faqHTML(){
+  var cards = state.faqs.map(function(fq,i){
+    return '<div style="background:#fff;border:1px solid #e6e3de;padding:22px 24px;display:grid;gap:12px;">'
+      + '<label style="display:grid;gap:6px;"><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Câu hỏi</span><input type="text" value="'+escA(fq.q)+'" onchange="updateFaq('+i+',\'q\',this.value)" style="border:none;border-bottom:1.5px solid #e6e3de;padding:9px 2px;font-size:15px;font-weight:600;background:none;" /></label>'
+      + '<label style="display:grid;gap:6px;"><span style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Trả lời</span><textarea rows="2" onchange="updateFaq('+i+',\'a\',this.value)" style="border:none;border-bottom:1px solid #e6e3de;padding:9px 2px;font-size:14px;background:none;resize:none;font-family:Archivo,sans-serif;line-height:1.6;color:#56544f;">'+escH(fq.a)+'</textarea></label>'
+      + '<div style="text-align:right;"><button class="faq-del" onclick="deleteFaq('+i+')" style="background:none;border:none;cursor:pointer;font-size:12px;color:#8a8784;letter-spacing:.1em;text-transform:uppercase;padding:0;transition:color .15s;">Xoá</button></div>'
+      + '</div>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + pageHeaderBtn('Quản lý','FAQ','+ Thêm câu hỏi','addFaq()')
+    + '<div style="display:flex;flex-direction:column;gap:14px;">'+cards+'</div>'
+    + '<button class="btn-dark" onclick="saveFaq()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;margin-top:22px;">Lưu FAQ</button>'
+    + (state.savedMsg ? savedSpan : '')
+    + '</div>';
+}
+
+function imagesHTML(){
+  var ov = getImages();
+  var groups = []; var groupMap = {};
+  imgGroupsDef.forEach(function(ig){
+    if(!groupMap[ig.group]){ groupMap[ig.group]=[]; groups.push({name:ig.group,items:groupMap[ig.group]}); }
+    groupMap[ig.group].push(ig);
+  });
+  var body = groups.map(function(grp){
+    var items = grp.items.map(function(ig){
+      var src = ov[ig.id] || '';
+      var boxStyle = 'position:relative;aspect-ratio:4/3;overflow:hidden;'
+        + (src ? 'background-image:url('+src+');background-size:cover;background-position:center;' : 'background:#f6f4f1;');
+      var overlay = src
+        ? '<button class="img-remove" onclick="removeImage(\''+ig.id+'\')" style="position:absolute;top:6px;right:6px;z-index:2;background:rgba(20,20,20,.75);color:#fff;border:none;cursor:pointer;font-size:11px;padding:5px 9px;transition:background .15s;">✕ Xoá</button>'
+        : '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;"><span style="font-size:28px;opacity:.3;">🖼</span><span style="font-size:11px;color:#bdb9b2;letter-spacing:.08em;">Chưa có ảnh</span></div>';
+      return '<div style="background:#fff;border:1px solid #e6e3de;overflow:hidden;">'
+        + '<div style="'+boxStyle+'">'+overlay+'</div>'
+        + '<div style="padding:12px 14px;">'
+        + '<div style="font-size:13px;font-weight:600;margin-bottom:3px;">'+escH(ig.label)+'</div>'
+        + (ig.desc ? '<div style="font-size:11px;color:#8a8784;margin-bottom:8px;">'+escH(ig.desc)+'</div>' : '')
+        + '<button class="btn-sm-dark" onclick="uploadImage(\''+ig.id+'\')" style="width:100%;background:#141414;color:#fff;border:none;cursor:pointer;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:9px;transition:opacity .15s;">↑ Tải ảnh lên</button>'
+        + '</div></div>';
+    }).join('');
+    return '<div style="margin-bottom:36px;">'
+      + '<div style="font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#141414;font-weight:600;padding-bottom:12px;border-bottom:2px solid #141414;margin-bottom:18px;">'+escH(grp.name)+'</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">'+items+'</div></div>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + '<div style="margin-bottom:32px;"><div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#8a8784;margin-bottom:10px;">Quản lý</div>'
+    + '<h1 style="font-family:\'Playfair Display\',serif;font-size:36px;font-weight:600;margin:0 0 10px;">Cấu hình hình ảnh</h1>'
+    + '<p style="font-size:14px;color:#8a8784;margin:0;">Tải lên ảnh thật để thay thế ảnh mẫu trên website. Ảnh được lưu vào trình duyệt, cập nhật ngay lập tức.</p></div>'
+    + body + '</div>';
+}
+
+function settingsHTML(){
+  var fields = settingsFields.map(function(sf){
+    return '<label style="display:grid;gap:7px;">'
+      + '<span style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8a8784;">'+escH(sf.label)+'</span>'
+      + '<input type="text" value="'+escA(state.settings[sf.key]||'')+'" onchange="updateSetting(\''+sf.key+'\',this.value)" style="border:none;border-bottom:1.5px solid #e6e3de;padding:10px 2px;font-size:15px;background:none;" /></label>';
+  }).join('');
+  return '<div style="animation:fade .3s ease both;">'
+    + pageHeader('Hệ thống','Cài đặt')
+    + '<div style="background:#fff;border:1px solid #e6e3de;padding:32px;max-width:520px;">'
+    + '<div style="font-size:14px;font-weight:600;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid #e6e3de;">Thông tin studio</div>'
+    + '<div style="display:grid;gap:18px;">'+fields+'</div>'
+    + '<button class="btn-dark" onclick="saveSettings()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;margin-top:28px;">Lưu cài đặt</button>'
+    + (state.savedMsg ? savedSpan : '')
+    + '</div>'
+    + '<div style="background:#fff;border:1px solid #e6e3de;padding:32px;max-width:520px;margin-top:20px;">'
+    + '<div style="font-size:14px;font-weight:600;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #e6e3de;">Đổi mật khẩu admin</div>'
+    + '<div style="display:grid;gap:14px;"><label style="display:grid;gap:7px;"><span style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8a8784;">Mật khẩu mới</span>'
+    + '<input id="newPwInput" type="password" placeholder="••••••••" style="border:none;border-bottom:1.5px solid #e6e3de;padding:10px 2px;font-size:15px;background:none;" /></label></div>'
+    + '<button class="btn-dark" onclick="changePw()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;margin-top:22px;">Cập nhật mật khẩu</button>'
+    + (state.pwSaved ? '<span style="margin-left:16px;font-size:13px;color:#27ae60;">✓ Đã cập nhật</span>' : '')
+    + '</div></div>';
+}
+
+function pageContent(){
+  switch(state.page){
+    case 'dash': return dashHTML();
+    case 'bookings': return bookingsHTML();
+    case 'products': return productsHTML();
+    case 'pricing': return pricingHTML();
+    case 'courses': return coursesHTML();
+    case 'testimonials': return testimonialsHTML();
+    case 'faq': return faqHTML();
+    case 'images': return imagesHTML();
+    case 'settings': return settingsHTML();
+    default: return dashHTML();
+  }
+}
+
+/* ======================= RENDER ======================= */
+function render(){
+  var app = document.getElementById('app');
+  app.style.fontFamily = "'Archivo',sans-serif";
+  if(state.page === 'login'){ app.innerHTML = loginHTML(); return; }
+  app.innerHTML = '<div style="display:flex;min-height:100vh;">'
+    + sidebarHTML()
+    + '<main style="flex:1;min-width:0;padding:36px 40px;overflow:auto;">' + pageContent() + '</main>'
+    + '</div>';
+}
+
+render();
+
+/* ======================= SESSION (Supabase) ======================= */
+if(SB){
+  SB.auth.getSession().then(function(res){
+    var hasSession = res && res.data && res.data.session;
+    state.page = hasSession ? 'dash' : 'login';
+    render();
+    if(hasSession) loadAdminData();
+  });
+}
+</script>
+</body>
+</html>
