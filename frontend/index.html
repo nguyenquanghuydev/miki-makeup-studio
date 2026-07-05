@@ -1009,6 +1009,7 @@ function applyImageOverrides(ov){
 function rerenderAll(imagesObj){
   renderFaq(); renderTestimonials(); renderPricing();
   renderTrainingTracks(); renderTrainingCourses(); renderGallery();
+  renderProducts();
   applySettings(); applyImageOverrides(imagesObj);
 }
 
@@ -1019,6 +1020,13 @@ async function loadFromBackend(){
     var res = await SB.from('site_content').select('key,data');
     if (res.error || !res.data) return;
     var m = {}; res.data.forEach(function(r){ m[r.key] = r.data; });
+    if (Array.isArray(m.products) && m.products.length) allProducts = m.products.map(function(p, i){
+      return {
+        name: p.name, cat: p.cat || 'tools', catLabel: p.catLabel || '', price: p.price,
+        img: p.img || IMG(catBgId[p.cat] || '1516975080664-ed2fc6a32937'),
+        key: 'prod-' + i, desc: catDesc[p.cat] || ''
+      };
+    });
     if (Array.isArray(m.pricing)) priceGroups = m.pricing.map(function(g,i){ return Object.assign({}, priceGroups[i] || {no:'',title:'',sub:''}, g); });
     if (Array.isArray(m.courses)) courses = m.courses.map(function(c,i){ return Object.assign({}, courses[i] || {}, c); });
     if (Array.isArray(m.faq)) faqData = m.faq;

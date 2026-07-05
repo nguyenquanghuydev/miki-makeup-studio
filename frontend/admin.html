@@ -75,7 +75,7 @@
 var LS = {
   PW:'miki-admin-pw', PRICE:'miki-pricing', COURSES:'miki-courses', FAQ:'miki-faq',
   TESTI:'miki-testimonials', SETTINGS:'miki-settings', BOOKINGS:'miki-bookings',
-  IMG:'miki-img-overrides', AUTH:'miki-admin-auth'
+  PRODUCTS:'miki-products', IMG:'miki-img-overrides', AUTH:'miki-admin-auth'
 };
 function ls(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
 function ss(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
@@ -98,6 +98,7 @@ async function loadAdminData(){
     var c = await SB.from('site_content').select('key,data');
     if(!c.error && c.data){
       var m = {}; c.data.forEach(function(r){ m[r.key] = r.data; });
+      if(Array.isArray(m.products)) state.products = m.products;
       if(Array.isArray(m.pricing)) state.pricing = m.pricing;
       if(Array.isArray(m.courses)) state.courses = m.courses;
       if(Array.isArray(m.faq)) state.faqs = m.faq;
@@ -120,13 +121,30 @@ var defaultBookings = [
   { id:2, name:'Lê Minh Châu', phone:'0987654321', svc:'Makeup tiệc theo yêu cầu', date:'18/07/2026', status:'Đã xác nhận' },
   { id:3, name:'Trần Lan Anh', phone:'0909090909', svc:'Glow Transform', date:'22/07/2026', status:'Hoàn thành' },
 ];
+var IMG = function(id){ return 'https://images.unsplash.com/photo-' + id + '?fm=jpg&q=72&w=800&auto=format&fit=crop'; };
+var prodCats = [
+  { id:'tools', label:'Dụng cụ Makeup' },
+  { id:'base', label:'Mĩ phẩm Nền' },
+  { id:'powder', label:'Phấn phủ · má · mắt' },
+  { id:'lip', label:'Son' },
+  { id:'skincare', label:'Dưỡng da' },
+];
 var defaultProducts = [
-  { name:'Cọ makeup cá nhân', catLabel:'Dụng cụ Makeup', price:'320.000' },
-  { name:'Bông mút tán nền (set 4)', catLabel:'Dụng cụ Makeup', price:'90.000' },
-  { name:'Kem nền lì lâu trôi 30ml', catLabel:'Mĩ phẩm Nền', price:'520.000' },
-  { name:'Phấn phủ kiềm dầu', catLabel:'Phấn phủ · má · mắt', price:'340.000' },
-  { name:'Son lì velvet', catLabel:'Son', price:'250.000' },
-  { name:'Serum cấp ẩm HA', catLabel:'Dưỡng da', price:'390.000' },
+  { name:'Cọ makeup cá nhân', cat:'tools', catLabel:'Dụng cụ Makeup', price:'320.000', img:IMG('1516975080664-ed2fc6a32937') },
+  { name:'Bông mút tán nền (set 4)', cat:'tools', catLabel:'Dụng cụ Makeup', price:'90.000', img:IMG('1583209814683-c023dd293cc6') },
+  { name:'Bảng pha nền inox', cat:'tools', catLabel:'Dụng cụ Makeup', price:'150.000', img:IMG('1596462502278-27bfdc403348') },
+  { name:'Kem nền lì lâu trôi 30ml', cat:'base', catLabel:'Mĩ phẩm Nền', price:'520.000', img:IMG('1512496015851-a90fb38ba796') },
+  { name:'Kem lót kiềm dầu', cat:'base', catLabel:'Mĩ phẩm Nền', price:'380.000', img:IMG('1585945037805-5fd82c2e60b1') },
+  { name:'Che khuyết điểm 2 đầu', cat:'base', catLabel:'Mĩ phẩm Nền', price:'260.000', img:IMG('1552046122-03184de85e08') },
+  { name:'Phấn phủ kiềm dầu', cat:'powder', catLabel:'Phấn phủ · má · mắt', price:'340.000', img:IMG('1522335789203-aabd1fc54bc9') },
+  { name:'Phấn má hồng tông cam đào', cat:'powder', catLabel:'Phấn phủ · má · mắt', price:'290.000', img:IMG('1596462502278-27bfdc403348') },
+  { name:'Bảng phấn mắt 12 ô tông đất', cat:'powder', catLabel:'Phấn phủ · má · mắt', price:'420.000', img:IMG('1516975080664-ed2fc6a32937') },
+  { name:'Son lì velvet', cat:'lip', catLabel:'Son', price:'250.000', img:IMG('1512496015851-a90fb38ba796') },
+  { name:'Son kem lâu trôi', cat:'lip', catLabel:'Son', price:'230.000', img:IMG('1522335789203-aabd1fc54bc9') },
+  { name:'Son dưỡng có màu', cat:'lip', catLabel:'Son', price:'180.000', img:IMG('1585945037805-5fd82c2e60b1') },
+  { name:'Nước tẩy trang dịu nhẹ', cat:'skincare', catLabel:'Dưỡng da', price:'210.000', img:IMG('1580870069867-74c57ee1bb07') },
+  { name:'Serum cấp ẩm HA', cat:'skincare', catLabel:'Dưỡng da', price:'390.000', img:IMG('1573461160327-b450ce3d8e7f') },
+  { name:'Kem chống nắng nâng tông', cat:'skincare', catLabel:'Dưỡng da', price:'320.000', img:IMG('1608571423902-eed4a5ad8108') },
 ];
 var defaultPricing = [
   { no:'01', title:'Dịch vụ lẻ', rows:[{label:'Tỉa & kẻ chân mày',note:'Định khung, hợp dáng mặt',price:'80.000đ'},{label:'Gắn mi giả',note:'Theo cụm hoặc cả dải',price:'80.000đ'},{label:'Makeup mắt',note:'Chỉ làm phần mắt & mi',price:'150.000đ'},{label:'Makeup nền & khối',note:'Lót – nền – che khuyết điểm',price:'250.000đ'},{label:'Dặm lại / chỉnh makeup',note:'Cứu cánh giữa buổi tiệc',price:'100.000đ'},{label:'Tư vấn tông & thử son',note:'Chọn màu hợp da',price:'Miễn phí'}]},
@@ -191,7 +209,7 @@ var state = {
   page: (window.SB ? 'login' : (localStorage.getItem(LS.AUTH) === 'ok' ? 'dash' : 'login')),
   loginErr:false, pwSaved:false, savedMsg:false, savedTimer:null, menuOpen:false,
   bookings: ls(LS.BOOKINGS) || defaultBookings,
-  products: defaultProducts.slice(),
+  products: ls(LS.PRODUCTS) || defaultProducts.slice(),
   pricing: ls(LS.PRICE) || defaultPricing,
   courses: ls(LS.COURSES) || defaultCourses,
   testimonials: ls(LS.TESTI) || defaultTestimonials,
@@ -273,8 +291,30 @@ async function addBooking(){
 }
 
 /* products */
-function addProduct(){ state.products = [{name:'Sản phẩm mới',catLabel:'Danh mục',price:'0'}].concat(state.products); render(); }
+function addProduct(){ state.products = [{name:'Sản phẩm mới',cat:'tools',catLabel:'Dụng cụ Makeup',price:'0',img:''}].concat(state.products); render(); }
 function deleteProduct(i){ state.products = state.products.filter(function(_,pi){ return pi!==i; }); render(); }
+function updateProduct(i,field,val){ state.products[i][field] = val; }
+function updateProductCat(i,catId){ var c = prodCats.find(function(x){ return x.id===catId; }); state.products[i].cat = catId; state.products[i].catLabel = c ? c.label : catId; }
+function uploadProductImage(i){
+  var input = document.createElement('input'); input.type='file'; input.accept='image/*';
+  input.onchange = async function(ev){
+    var f = ev.target.files && ev.target.files[0]; if(!f) return;
+    if(SB){
+      try {
+        var ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+        var path = 'product-' + Date.now() + '.' + ext;
+        var up = await SB.storage.from(BUCKET).upload(path, f, { upsert:true });
+        if(up.error){ alert('Lỗi tải ảnh: ' + up.error.message); return; }
+        state.products[i].img = SB.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+        render();
+      } catch(e){ alert('Lỗi tải ảnh: ' + e.message); }
+    } else {
+      var rd = new FileReader(); rd.onload = function(){ state.products[i].img = rd.result; render(); }; rd.readAsDataURL(f);
+    }
+  };
+  input.click();
+}
+function saveProducts(){ ss(LS.PRODUCTS, state.products); pushContent('products', state.products); flash(); }
 
 /* pricing */
 function updatePriceRow(gi,ri,field,val){ state.pricing[gi].rows[ri][field] = val; }
@@ -456,22 +496,26 @@ function bookingsHTML(){
 }
 
 function productsHTML(){
-  var rows = state.products.map(function(ap,i){
-    return '<tr class="hoverable" style="border-bottom:1px solid #f0ede9;">'
-      + '<td style="padding:14px 18px;font-weight:600;">'+escH(ap.name)+'</td>'
-      + '<td style="padding:14px 18px;color:#56544f;">'+escH(ap.catLabel)+'</td>'
-      + '<td style="padding:14px 18px;font-family:\'Playfair Display\',serif;font-size:15px;">'+escH(ap.price)+'đ</td>'
-      + '<td style="padding:14px 18px;display:flex;gap:8px;">'
-      + '<button class="btn-sm-dark" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:11px;padding:7px 12px;transition:opacity .15s;">Sửa</button>'
-      + '<button class="btn-ghost" onclick="deleteProduct('+i+')" style="background:#fff;color:#141414;border:1px solid #cfccc6;cursor:pointer;font-size:11px;padding:7px 12px;">Xoá</button>'
-      + '</td></tr>';
+  var cards = state.products.map(function(p,i){
+    var catOpts = prodCats.map(function(c){ return '<option value="'+c.id+'"'+(p.cat===c.id?' selected':'')+'>'+escH(c.label)+'</option>'; }).join('');
+    var thumb = p.img
+      ? 'aspect-ratio:1/1;background-image:url('+p.img+');background-size:cover;background-position:center;'
+      : 'aspect-ratio:1/1;background:#f6f4f1;display:flex;align-items:center;justify-content:center;';
+    return '<div style="background:#fff;border:1px solid #e6e3de;padding:14px;display:flex;flex-direction:column;gap:9px;">'
+      + '<div style="'+thumb+'overflow:hidden;">'+(p.img?'':'<span style="font-size:11px;color:#bdb9b2;letter-spacing:.06em;">Chưa có ảnh</span>')+'</div>'
+      + '<button class="btn-sm-dark" onclick="uploadProductImage('+i+')" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:8px;transition:opacity .15s;">↑ Tải ảnh</button>'
+      + '<label style="display:grid;gap:4px;"><span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Tên sản phẩm</span><input type="text" value="'+escA(p.name)+'" onchange="updateProduct('+i+',\'name\',this.value)" style="border:none;border-bottom:1px solid #e6e3de;padding:6px 2px;font-size:14px;font-weight:600;background:none;" /></label>'
+      + '<label style="display:grid;gap:4px;"><span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Danh mục</span><select onchange="updateProductCat('+i+',this.value)" style="border:none;border-bottom:1px solid #e6e3de;padding:6px 2px;font-size:13px;background:none;">'+catOpts+'</select></label>'
+      + '<label style="display:grid;gap:4px;"><span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8a8784;">Giá (VD: 320.000)</span><input type="text" value="'+escA(p.price)+'" onchange="updateProduct('+i+',\'price\',this.value)" style="border:none;border-bottom:1px solid #e6e3de;padding:6px 2px;font-size:14px;background:none;" /></label>'
+      + '<button class="testi-del" onclick="deleteProduct('+i+')" style="background:none;border:1px solid #f0ede9;cursor:pointer;font-size:11px;color:#8a8784;padding:7px;text-align:center;transition:all .15s;">Xoá</button>'
+      + '</div>';
   }).join('');
   return '<div style="animation:fade .3s ease both;">'
     + pageHeaderBtn('Quản lý','Sản phẩm','+ Thêm sản phẩm','addProduct()')
-    + '<div style="background:#fff;border:1px solid #e6e3de;overflow:auto;">'
-    + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
-    + '<thead><tr style="border-bottom:2px solid #141414;">'+th('Tên sản phẩm')+th('Danh mục')+th('Giá')+th('Thao tác')+'</tr></thead>'
-    + '<tbody>'+rows+'</tbody></table></div></div>';
+    + '<div class="mstack2" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">'+cards+'</div>'
+    + '<button class="btn-dark" onclick="saveProducts()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;margin-top:22px;">Lưu sản phẩm</button>'
+    + (state.savedMsg ? savedSpan : '')
+    + '</div>';
 }
 
 function priceTh(label){ return '<th style="text-align:left;padding:10px 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;">'+escH(label)+'</th>'; }
