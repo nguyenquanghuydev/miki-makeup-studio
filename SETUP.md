@@ -51,17 +51,26 @@ Lần đầu API tự tạo bảng + tài khoản admin. Kiểm tra:
 curl https://api.mikimakeup.shop/api/health     # {"ok":true}
 ```
 
-### A4. Tự động pull git (auto-deploy backend)
-Dùng cron chạy script `deploy/auto-deploy.sh` mỗi 2 phút (pull + rebuild khi có commit mới):
-```bash
-chmod +x deploy/auto-deploy.sh
-crontab -e
+### A4. Tự động pull git (auto-deploy backend qua GitHub Actions) — ĐÃ CẤU HÌNH
+
+Mỗi khi push `main` có đổi **backend** (`server/`, `docker-compose.yml`, `deploy/`),
+GitHub Actions (`.github/workflows/deploy.yml`) sẽ SSH vào VPS và chạy `deploy/auto-deploy.sh`
+(git pull + `docker compose up -d --build`). Frontend do Cloudflare Pages tự deploy riêng.
+
+**Bảo mật (đã thiết lập):**
+- Dùng **deploy key riêng** (không phải key cá nhân), lưu trong GitHub Secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`.
+- Key CI bị **khoá bằng forced-command** trong `~/.ssh/authorized_keys`:
+  ```
+  command="/opt/miki-makeup-studio/deploy/auto-deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... miki-ci-deploy
+  ```
+  → key này **chỉ chạy được đúng script deploy**, không thể chạy lệnh khác trên VPS (kể cả nếu lộ).
+
+**Bấm deploy tay:** GitHub → Actions → *Deploy backend to VPS* → *Run workflow*.
+
+**(Tuỳ chọn) Cron dự phòng** nếu không muốn phụ thuộc Actions:
 ```
-Thêm dòng (đổi đường dẫn cho đúng):
+*/2 * * * * /opt/miki-makeup-studio/deploy/auto-deploy.sh >> /var/log/miki-deploy.log 2>&1
 ```
-*/2 * * * * /root/miki-makeup-studio/deploy/auto-deploy.sh >> /var/log/miki-deploy.log 2>&1
-```
-> Muốn **deploy tức thì** thay vì chờ 2 phút: dùng GitHub webhook gọi script — nhưng cron là đủ và đơn giản nhất.
 
 ---
 

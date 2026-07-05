@@ -1,0 +1,30 @@
+name: Deploy backend to VPS
+
+# Chỉ chạy khi phần BACKEND đổi (frontend do Cloudflare Pages tự deploy riêng).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "docker-compose.yml"
+      - "deploy/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy (key bị khoá bằng forced-command trên VPS)
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          # Lệnh gửi đi bị bỏ qua; VPS chạy /opt/miki-makeup-studio/deploy/auto-deploy.sh
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" deploy
