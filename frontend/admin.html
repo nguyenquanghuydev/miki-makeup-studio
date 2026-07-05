@@ -36,6 +36,32 @@
   .testi-del:hover{border-color:#c0392b !important;color:#c0392b !important;}
   .faq-del:hover{color:#c0392b !important;}
   .navbtn{transition:background .12s;}
+
+  /* ===== Mobile: top bar + slide sidebar ===== */
+  #adminTopbar{ display:none; }
+  #adminOverlay{ display:none; }
+  @media (max-width: 820px){
+    #adminTopbar{
+      display:flex; align-items:center; gap:14px;
+      position:sticky; top:0; z-index:50;
+      background:#141414; color:#f3f1ee; padding:12px 16px;
+    }
+    #adminSidebar{
+      position:fixed !important; top:0; left:0; bottom:0;
+      height:100vh !important; z-index:70;
+      transform:translateX(-100%); transition:transform .28s ease;
+    }
+    #adminSidebar.open{ transform:translateX(0); box-shadow:0 0 60px rgba(0,0,0,.45); }
+    #adminOverlay.show{
+      display:block; position:fixed; inset:0;
+      background:rgba(20,20,20,.5); z-index:60;
+    }
+    #adminMain{ padding:20px 16px !important; }
+    /* xếp lưới nội dung thành 1–2 cột cho dễ đọc */
+    .mstack{ grid-template-columns:1fr !important; }
+    .mstack2{ grid-template-columns:1fr 1fr !important; }
+    #adminMain h1{ font-size:28px !important; }
+  }
 </style>
 </head>
 <body>
@@ -161,7 +187,7 @@ var navDef = [
 /* ======================= STATE ======================= */
 var state = {
   page: (window.SB ? 'login' : (localStorage.getItem(LS.AUTH) === 'ok' ? 'dash' : 'login')),
-  loginErr:false, pwSaved:false, savedMsg:false, savedTimer:null,
+  loginErr:false, pwSaved:false, savedMsg:false, savedTimer:null, menuOpen:false,
   bookings: ls(LS.BOOKINGS) || defaultBookings,
   products: defaultProducts.slice(),
   pricing: ls(LS.PRICE) || defaultPricing,
@@ -207,7 +233,7 @@ async function doLogout(){
   if(SB){ try { await SB.auth.signOut(); } catch(e){} }
   localStorage.removeItem(LS.AUTH); state.page='login'; state.loginErr=false; render();
 }
-function nav(p){ state.page=p; state.savedMsg=false; render(); }
+function nav(p){ state.page=p; state.savedMsg=false; state.menuOpen=false; render(); }
 async function changePw(){
   var v = document.getElementById('newPwInput').value;
   if(!v) return;
@@ -345,7 +371,7 @@ function sidebarHTML(){
     return '<button class="navbtn" onclick="nav(\''+n.id+'\')" style="'+st+'">'
       + '<span style="font-size:16px;line-height:1;">'+n.icon+'</span><span>'+escH(n.label)+'</span>'+badge+'</button>';
   }).join('');
-  return '<aside style="width:240px;flex-shrink:0;background:#141414;color:#f3f1ee;display:flex;flex-direction:column;min-height:100vh;position:sticky;top:0;height:100vh;overflow:auto;">'
+  return '<aside id="adminSidebar" class="'+(state.menuOpen?'open':'')+'" style="width:240px;flex-shrink:0;background:#141414;color:#f3f1ee;display:flex;flex-direction:column;min-height:100vh;position:sticky;top:0;height:100vh;overflow:auto;">'
     + '<div style="padding:28px 22px 20px;border-bottom:1px solid #2c2c2c;">'
     + '<div style="font-family:\'Playfair Display\',serif;font-size:26px;font-weight:700;">Miki</div>'
     + '<div style="font-size:9px;letter-spacing:.38em;text-transform:uppercase;color:#7c7a76;margin-top:4px;">Studio Admin</div>'
@@ -396,8 +422,8 @@ function dashHTML(){
   }).join('');
   return '<div style="animation:fade .3s ease both;">'
     + pageHeader('Tổng quan','Dashboard')
-    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:36px;">'+statsHTML+'</div>'
-    + '<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:24px;">'
+    + '<div class="mstack2" style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:36px;">'+statsHTML+'</div>'
+    + '<div class="mstack" style="display:grid;grid-template-columns:1.3fr 1fr;gap:24px;">'
     + '<div style="background:#fff;border:1px solid #e6e3de;padding:28px;">'
     + '<div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#8a8784;margin-bottom:18px;">Đơn đặt lịch gần đây</div>'+orders+'</div>'
     + '<div style="background:#fff;border:1px solid #e6e3de;padding:28px;">'
@@ -483,7 +509,7 @@ function coursesHTML(){
         + '<input type="text" value="'+escA(co[key])+'" onchange="updateCourse('+i+',\''+key+'\',this.value)" style="border:none;border-bottom:1.5px solid #e6e3de;padding:9px 2px;font-size:15px;background:none;'+(extra||'')+'" /></label>';
     }
     return '<div style="background:#fff;border:1px solid #e6e3de;padding:26px 28px;margin-bottom:18px;">'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">'
+      + '<div class="mstack" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">'
       + field('Tên khóa','name','font-weight:600;')
       + field('Giá (VD: 1.500.000)','price')
       + field('Thời lượng','dur','font-size:14px;')
@@ -512,7 +538,7 @@ function testimonialsHTML(){
   }).join('');
   return '<div style="animation:fade .3s ease both;">'
     + pageHeaderBtn('Quản lý','Đánh giá khách hàng','+ Thêm đánh giá','addTestimonial()')
-    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;">'+cards+'</div>'
+    + '<div class="mstack" style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;">'+cards+'</div>'
     + '<button class="btn-dark" onclick="saveTestimonials()" style="background:#141414;color:#fff;border:none;cursor:pointer;font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:15px 32px;margin-top:22px;">Lưu đánh giá</button>'
     + (state.savedMsg ? savedSpan : '')
     + '</div>';
@@ -559,7 +585,7 @@ function imagesHTML(){
     }).join('');
     return '<div style="margin-bottom:36px;">'
       + '<div style="font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#141414;font-weight:600;padding-bottom:12px;border-bottom:2px solid #141414;margin-bottom:18px;">'+escH(grp.name)+'</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">'+items+'</div></div>';
+      + '<div class="mstack2" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">'+items+'</div></div>';
   }).join('');
   return '<div style="animation:fade .3s ease both;">'
     + '<div style="margin-bottom:32px;"><div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#8a8784;margin-bottom:10px;">Quản lý</div>'
@@ -611,10 +637,32 @@ function render(){
   var app = document.getElementById('app');
   app.style.fontFamily = "'Archivo',sans-serif";
   if(state.page === 'login'){ app.innerHTML = loginHTML(); return; }
-  app.innerHTML = '<div style="display:flex;min-height:100vh;">'
+  app.innerHTML = topbarHTML()
+    + '<div id="adminOverlay" class="'+(state.menuOpen?'show':'')+'" onclick="closeSidebar()"></div>'
+    + '<div style="display:flex;min-height:100vh;">'
     + sidebarHTML()
-    + '<main style="flex:1;min-width:0;padding:36px 40px;overflow:auto;">' + pageContent() + '</main>'
+    + '<main id="adminMain" style="flex:1;min-width:0;padding:36px 40px;overflow:auto;">' + pageContent() + '</main>'
     + '</div>';
+}
+
+function topbarHTML(){
+  return '<div id="adminTopbar">'
+    + '<button onclick="toggleSidebar()" aria-label="Menu" style="background:none;border:none;cursor:pointer;color:#f3f1ee;padding:4px;display:flex;align-items:center;">'
+    + '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f3f1ee" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="17" x2="21" y2="17"></line></svg>'
+    + '</button>'
+    + '<div style="line-height:1;"><span style="font-family:\'Playfair Display\',serif;font-size:20px;font-weight:700;">Miki</span>'
+    + '<span style="font-size:8px;letter-spacing:.34em;text-transform:uppercase;color:#8a8784;margin-left:8px;">Studio Admin</span></div>'
+    + '</div>';
+}
+function toggleSidebar(){
+  state.menuOpen = !state.menuOpen;
+  var sb = document.getElementById('adminSidebar'); if(sb) sb.classList.toggle('open', state.menuOpen);
+  var ov = document.getElementById('adminOverlay'); if(ov) ov.classList.toggle('show', state.menuOpen);
+}
+function closeSidebar(){
+  state.menuOpen = false;
+  var sb = document.getElementById('adminSidebar'); if(sb) sb.classList.remove('open');
+  var ov = document.getElementById('adminOverlay'); if(ov) ov.classList.remove('show');
 }
 
 render();
