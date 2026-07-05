@@ -40,7 +40,9 @@
   /* ===== Mobile: top bar + slide sidebar ===== */
   #adminTopbar{ display:none; }
   #adminOverlay{ display:none; }
+  .sidebar-close{ display:none; }
   @media (max-width: 820px){
+    .sidebar-close{ display:block !important; }
     #adminTopbar{
       display:flex; align-items:center; gap:14px;
       position:sticky; top:0; z-index:50;
@@ -372,9 +374,10 @@ function sidebarHTML(){
       + '<span style="font-size:16px;line-height:1;">'+n.icon+'</span><span>'+escH(n.label)+'</span>'+badge+'</button>';
   }).join('');
   return '<aside id="adminSidebar" class="'+(state.menuOpen?'open':'')+'" style="width:240px;flex-shrink:0;background:#141414;color:#f3f1ee;display:flex;flex-direction:column;min-height:100vh;position:sticky;top:0;height:100vh;overflow:auto;">'
-    + '<div style="padding:28px 22px 20px;border-bottom:1px solid #2c2c2c;">'
-    + '<div style="font-family:\'Playfair Display\',serif;font-size:26px;font-weight:700;">Miki</div>'
-    + '<div style="font-size:9px;letter-spacing:.38em;text-transform:uppercase;color:#7c7a76;margin-top:4px;">Studio Admin</div>'
+    + '<div style="padding:28px 22px 20px;border-bottom:1px solid #2c2c2c;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">'
+    + '<div><div style="font-family:\'Playfair Display\',serif;font-size:26px;font-weight:700;">Miki</div>'
+    + '<div style="font-size:9px;letter-spacing:.38em;text-transform:uppercase;color:#7c7a76;margin-top:4px;">Studio Admin</div></div>'
+    + '<button class="sidebar-close" onclick="closeSidebar()" aria-label="Đóng menu" style="background:none;border:none;cursor:pointer;color:#9a948c;font-size:28px;line-height:1;padding:0;margin-top:-4px;">×</button>'
     + '</div>'
     + '<nav style="padding:12px 0;flex:1;">'+items+'</nav>'
     + '<div style="padding:18px 22px;border-top:1px solid #2c2c2c;">'
