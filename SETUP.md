@@ -1,95 +1,105 @@
-# Miki Makeup Studio — Self-host (Docker + PostgreSQL + Node API + Nginx)
+# Miki Makeup Studio — Hybrid: Cloudflare (frontend) + VPS Docker (backend)
 
-Toàn bộ hệ thống chạy bằng **Docker Compose**: web tĩnh + API + PostgreSQL, đồng bộ đa thiết bị,
-lưu ảnh trên đĩa (volume). Không phụ thuộc dịch vụ ngoài.
-
-## Kiến trúc
+Cả hai đều **tự động deploy khi push git**.
 
 ```
-Trình duyệt ──▶ Nginx (web:80) ──▶ file tĩnh (index.html, admin.html, db-client.js)
-                       │
-                       ├── /api/*   ─▶ Node API (Express)  ─▶ PostgreSQL
-                       └── /uploads/* ─▶ Node API (ảnh trên volume)
+                 ┌─────────────────────────────┐
+   Khách  ─────▶ │ Cloudflare Pages (frontend)  │   auto-deploy khi push (Git tích hợp)
+                 │ frontend/ : index, admin, db │
+                 └───────────────┬─────────────┘
+                                 │ gọi API (HTTPS, CORS)
+                                 ▼
+                 ┌─────────────────────────────┐
+                 │ Cloudflare Tunnel  → VPS     │
+                 │ Docker: api (Node) + db (PG) │   auto-pull git bằng cron
+                 └─────────────────────────────┘
 ```
 
-- `db-client.js` thay thế Supabase — cùng interface nên `index.html` / `admin.html` gần như giữ nguyên.
-- Đọc nội dung: công khai. Ghi nội dung / xem đơn / upload ảnh: cần đăng nhập (JWT).
-- Khách gửi đơn đặt lịch: công khai (không cần đăng nhập).
+- Repo: https://github.com/nguyenquanghuydev/miki-makeup-studio
+- `frontend/` → Cloudflare Pages. `server/` + `docker-compose.yml` → VPS.
 
 ---
 
-## Chạy trên VPS (yêu cầu: Docker + Docker Compose)
+## PHẦN A — Backend trên VPS (Docker)
 
-### 1. Lấy mã nguồn về VPS
+### A1. Lấy mã nguồn + cấu hình
 ```bash
 git clone https://github.com/nguyenquanghuydev/miki-makeup-studio.git
 cd miki-makeup-studio
-```
-
-### 2. Tạo file cấu hình bí mật `.env`
-```bash
 cp .env.example .env
-nano .env        # điền giá trị THẬT
+nano .env      # điền POSTGRES_PASSWORD, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
 ```
-Cần đổi:
-| Biến | Ý nghĩa |
-|---|---|
-| `POSTGRES_PASSWORD` | Mật khẩu database (đặt mạnh) |
-| `JWT_SECRET` | Chuỗi ngẫu nhiên dài — tạo bằng `openssl rand -hex 32` |
-| `ADMIN_EMAIL` | Email đăng nhập trang admin |
-| `ADMIN_PASSWORD` | Mật khẩu admin khởi tạo lần đầu |
-| `WEB_PORT` | Cổng web (mặc định 8080) |
 
-> `.env` đã được `.gitignore` — không bao giờ bị đẩy lên git.
+### A2. Đưa API ra internet bằng Cloudflare Tunnel (HTTPS, không mở port)
+1. Cloudflare **Zero Trust → Networks → Tunnels → Create a tunnel** → chọn **Cloudflared** (Docker).
+2. Copy **token**, dán vào `.env`:
+   ```
+   TUNNEL_TOKEN=eyJ...
+   COMPOSE_PROFILES=tunnel      # bỏ dấu # để bật cloudflared
+   ```
+3. Trong tunnel, thêm **Public hostname**:
+   - Subdomain: `api` · Domain: `mikimakeup.shop`  → `api.mikimakeup.shop`
+   - Service: **HTTP** · URL: `api:3000`
+   (Cloudflared chạy chung mạng Docker nên gọi được `api:3000`.)
 
-### 3. Khởi động
+### A3. Khởi động
 ```bash
 docker compose up -d --build
 ```
-Lần đầu API sẽ tự: tạo bảng (`site_content`, `bookings`, `users`) và tạo tài khoản admin từ `.env`.
+Lần đầu API tự tạo bảng + tài khoản admin. Kiểm tra:
+```bash
+curl https://api.mikimakeup.shop/api/health     # {"ok":true}
+```
 
-### 4. Truy cập
-- Web khách: `http://<IP-VPS>:8080/`
-- Trang admin: `http://<IP-VPS>:8080/admin.html` → đăng nhập bằng `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+### A4. Tự động pull git (auto-deploy backend)
+Dùng cron chạy script `deploy/auto-deploy.sh` mỗi 2 phút (pull + rebuild khi có commit mới):
+```bash
+chmod +x deploy/auto-deploy.sh
+crontab -e
+```
+Thêm dòng (đổi đường dẫn cho đúng):
+```
+*/2 * * * * /root/miki-makeup-studio/deploy/auto-deploy.sh >> /var/log/miki-deploy.log 2>&1
+```
+> Muốn **deploy tức thì** thay vì chờ 2 phút: dùng GitHub webhook gọi script — nhưng cron là đủ và đơn giản nhất.
 
 ---
 
-## Gắn tên miền + HTTPS (khuyến nghị)
+## PHẦN B — Frontend trên Cloudflare Pages (auto-deploy sẵn)
 
-Đặt một reverse proxy có SSL trước cổng web. Cách nhanh nhất là **Caddy** (tự cấp SSL Let's Encrypt):
+1. Cloudflare Dashboard → **Workers & Pages → Create → Pages → Connect to Git**.
+2. Chọn repo `miki-makeup-studio`, branch **main**.
+3. Cấu hình build:
+   - Framework preset: **None**
+   - Build command: **(để trống)**
+   - **Build output directory: `frontend`**
+4. **Save and Deploy**. Từ giờ **mỗi lần push git, Cloudflare tự build + deploy** frontend.
+5. (Tuỳ chọn) Custom domains → thêm `mikimakeup.shop` cho trang Pages.
 
-`Caddyfile`:
-```
-mikimakeup.shop, www.mikimakeup.shop {
-    reverse_proxy localhost:8080
-}
-```
-Rồi trỏ DNS bản ghi **A** của `mikimakeup.shop` về IP VPS (và `www` CNAME về `mikimakeup.shop`).
-(Hoặc dùng Nginx Proxy Manager / Traefik nếu bạn quen.)
-
-Nếu API chạy khác tên miền với web, sửa `db-client.js`:
+### B1. Trỏ frontend tới API
+Sửa **`frontend/db-client.js`** dòng `MIKI_API_BASE` thành URL API thật:
 ```js
 window.MIKI_API_BASE = "https://api.mikimakeup.shop";
 ```
+Commit + push → Cloudflare tự deploy lại.
 
 ---
 
-## Vận hành
+## Kiểm tra hoạt động
+- Web khách: `https://<ten>.pages.dev/` (hoặc `mikimakeup.shop`)
+- Admin: `.../admin.html` → đăng nhập bằng `ADMIN_EMAIL`/`ADMIN_PASSWORD`
+- Sửa nội dung/ảnh trong admin → lưu → khách ở thiết bị khác thấy ngay (đồng bộ qua API + DB).
+- Khách gửi đơn đặt lịch → hiện trong mục **Đơn đặt lịch** của admin.
 
-| Việc | Lệnh |
+## Vận hành nhanh
+| Việc | Lệnh (trên VPS) |
 |---|---|
-| Xem log | `docker compose logs -f api` |
-| Dừng | `docker compose down` |
-| Dừng + xoá dữ liệu | `docker compose down -v`  ⚠️ mất DB & ảnh |
-| Cập nhật code | `git pull && docker compose up -d --build` |
-| Sao lưu DB | `docker compose exec db pg_dump -U miki miki > backup.sql` |
-| Phục hồi DB | `cat backup.sql \| docker compose exec -T db psql -U miki miki` |
-| Sao lưu ảnh | ảnh nằm trong volume `uploads` (vd: `docker run --rm -v mikimakeup_uploads:/d -v $PWD:/b alpine tar czf /b/uploads.tgz -C /d .`) |
+| Log API | `docker compose logs -f api` |
+| Log auto-deploy | `tail -f /var/log/miki-deploy.log` |
+| Deploy tay | `git pull && docker compose up -d --build` |
+| Backup DB | `docker compose exec db pg_dump -U miki miki > backup.sql` |
+| Backup ảnh | volume `uploads` (vd `docker run --rm -v mikimakeup_uploads:/d -v $PWD:/b alpine tar czf /b/uploads.tgz -C /d .`) |
+| Dừng | `docker compose down` (thêm `-v` để xoá cả DB & ảnh ⚠️) |
 
-**Đổi mật khẩu admin:** đăng nhập admin → **Cài đặt → Đổi mật khẩu admin** (lưu vào DB, không cần sửa `.env`).
-
-## Dữ liệu được lưu ở đâu
-- Nội dung (bảng giá, khóa học, FAQ, đánh giá, cài đặt, ảnh): bảng `site_content`.
-- Đơn đặt lịch: bảng `bookings`.
-- Tài khoản admin: bảng `users` (mật khẩu băm bcrypt).
-- Ảnh upload: volume Docker `uploads`, phục vụ ở `/uploads/...`.
+**Bảo mật:** `.env` (mật khẩu, JWT, tunnel token) đã được `.gitignore` — không bao giờ lên git.
+API chỉ mở trên `127.0.0.1` của VPS; ra ngoài đi qua Cloudflare Tunnel (có SSL, không hở port).

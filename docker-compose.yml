@@ -26,21 +26,23 @@ services:
       PORT: 3000
     volumes:
       - uploads:/app/uploads
+    # Chỉ mở cổng trên localhost VPS (không phơi ra internet).
+    # Ra ngoài đi qua Cloudflare Tunnel (bảo mật + HTTPS).
+    ports:
+      - "127.0.0.1:${API_PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
 
-  web:
-    image: nginx:alpine
+  # Cloudflare Tunnel: đưa API ra https://api.<domain> — không cần mở port, tự có SSL.
+  # Bật bằng cách đặt COMPOSE_PROFILES=tunnel và TUNNEL_TOKEN trong .env
+  cloudflared:
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    ports:
-      - "${WEB_PORT:-8080}:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Chỉ mount đúng các file frontend (không lộ .env / server / mã nguồn)
-      - ./index.html:/usr/share/nginx/html/index.html:ro
-      - ./admin.html:/usr/share/nginx/html/admin.html:ro
-      - ./db-client.js:/usr/share/nginx/html/db-client.js:ro
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
     depends_on:
       - api
 

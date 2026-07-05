@@ -4,15 +4,16 @@
    Tạo window.SB với cùng "hình dạng" API mà index.html / admin.html
    đang dùng, nhưng bên dưới gọi REST tới backend Node.js của bạn.
 
-   MIKI_API_BASE:
-     - Để trống ""  → gọi cùng origin (khi Nginx proxy /api, /uploads).
-       Đây là mặc định cho bản Docker Compose. Không cần sửa gì.
-     - Nếu API chạy ở tên miền khác, điền vào, vd:
-       window.MIKI_API_BASE = "https://api.mikimakeup.shop";
+   MIKI_API_BASE = địa chỉ API self-host trên VPS (qua Cloudflare Tunnel).
+     - Frontend chạy trên Cloudflare Pages, API chạy trên VPS → PHẢI điền URL API.
+       Ví dụ: "https://api.mikimakeup.shop"
+     - Nếu chạy chung 1 máy (all-in-one, cùng origin) thì để trống "".
    ============================================================ */
 (function () {
-  window.MIKI_API_BASE = window.MIKI_API_BASE || "";
+  // ⬇️ ĐỔI thành URL API thật của bạn (hostname Cloudflare Tunnel)
+  window.MIKI_API_BASE = (typeof window.MIKI_API_BASE === "string") ? window.MIKI_API_BASE : "https://api.mikimakeup.shop";
   var BASE = window.MIKI_API_BASE;
+  function absolute(u) { return /^https?:\/\//.test(u) ? u : (BASE + u); }
   var TOKEN_KEY = "miki-api-token";
   var uploadUrls = {}; // path -> url trả về từ server
 
@@ -116,11 +117,11 @@
             fd.append("file", file);
             var res = await req("POST", "/api/upload", fd, true);
             if (res.error) return { data: null, error: res.error };
-            if (res.data && res.data.url) uploadUrls[path] = res.data.url;
+            if (res.data && res.data.url) uploadUrls[path] = absolute(res.data.url);
             return { data: res.data, error: null };
           },
           getPublicUrl: function (path) {
-            return { data: { publicUrl: uploadUrls[path] || (BASE + "/uploads/" + path) } };
+            return { data: { publicUrl: uploadUrls[path] || absolute("/uploads/" + path) } };
           }
         };
       }
