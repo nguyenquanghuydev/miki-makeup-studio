@@ -1024,7 +1024,7 @@ async function loadFromBackend(){
       return {
         name: p.name, cat: p.cat || 'tools', catLabel: p.catLabel || '', price: p.price,
         img: p.img || IMG(catBgId[p.cat] || '1516975080664-ed2fc6a32937'),
-        key: 'prod-' + i, desc: catDesc[p.cat] || ''
+        key: 'prod-' + i, desc: p.desc || catDesc[p.cat] || ''
       };
     });
     if (Array.isArray(m.pricing)) priceGroups = m.pricing.map(function(g,i){ return Object.assign({}, priceGroups[i] || {no:'',title:'',sub:''}, g); });
