@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - "server/**"
+      - "frontend/**"
+      - "nginx/**"
       - "docker-compose.yml"
       - "deploy/**"
       - ".github/workflows/deploy.yml"

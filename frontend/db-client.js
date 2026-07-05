@@ -10,8 +10,9 @@
      - Nếu chạy chung 1 máy (all-in-one, cùng origin) thì để trống "".
    ============================================================ */
 (function () {
-  // ⬇️ ĐỔI thành URL API thật của bạn (hostname Cloudflare Tunnel)
-  window.MIKI_API_BASE = (typeof window.MIKI_API_BASE === "string") ? window.MIKI_API_BASE : "https://api.mikimakeup.shop";
+  // All-in-one (frontend + API cùng domain qua nginx) → để trống "".
+  // Nếu tách frontend sang Cloudflare Pages, đổi thành URL API, vd "https://api.mikimakeup.shop".
+  window.MIKI_API_BASE = (typeof window.MIKI_API_BASE === "string") ? window.MIKI_API_BASE : "";
   var BASE = window.MIKI_API_BASE;
   function absolute(u) { return /^https?:\/\//.test(u) ? u : (BASE + u); }
   var TOKEN_KEY = "miki-api-token";
