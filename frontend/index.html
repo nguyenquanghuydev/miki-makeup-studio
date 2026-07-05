@@ -639,9 +639,14 @@ function renderServicePreview(){
 }
 
 function renderGallery(){
-  var track = galleryIds.concat(galleryIds);
-  document.getElementById('galleryTrack').innerHTML = track.map(function(id){
-    return '<div style="flex:0 0 auto;width:300px;height:400px;background-image:url('+IMG(id)+');background-size:cover;background-position:center;"></div>';
+  // 6 slot Lookbook đầu (look-0..5) do admin upload sẽ thay ảnh mặc định; 4 tile còn lại giữ mặc định.
+  var ov = window.__mikiImages || {};
+  var imgs = galleryIds.map(function(id, i){
+    return (i < 6 && ov['look-' + i]) ? ov['look-' + i] : IMG(id);
+  });
+  var track = imgs.concat(imgs);
+  document.getElementById('galleryTrack').innerHTML = track.map(function(u){
+    return '<div style="flex:0 0 auto;width:300px;height:400px;background-image:url('+u+');background-size:cover;background-position:center;"></div>';
   }).join('');
 }
 
@@ -1003,7 +1008,7 @@ function applyImageOverrides(ov){
 
 function rerenderAll(imagesObj){
   renderFaq(); renderTestimonials(); renderPricing();
-  renderTrainingTracks(); renderTrainingCourses();
+  renderTrainingTracks(); renderTrainingCourses(); renderGallery();
   applySettings(); applyImageOverrides(imagesObj);
 }
 
