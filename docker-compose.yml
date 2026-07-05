@@ -44,6 +44,9 @@ services:
       - ./frontend:/usr/share/nginx/html:ro
     depends_on:
       - api
+    networks:
+      - default   # để gọi tới api/db
+      - edge      # để castflow_caddy (proxy chung) gọi web theo tên -> sống sót recreate
 
   # Cloudflare Tunnel: đưa API ra https://api.<domain> — không cần mở port, tự có SSL.
   # Bật bằng cách đặt COMPOSE_PROFILES=tunnel và TUNNEL_TOKEN trong .env
@@ -60,3 +63,11 @@ services:
 volumes:
   pgdata:
   uploads:
+
+networks:
+  default: {}
+  # Network của proxy chung (castflow_caddy). web join vào đây để proxy gọi được
+  # theo tên container, sống sót qua recreate của cả 2 phía — không cần chạm castflow.
+  edge:
+    external: true
+    name: castflow_default
