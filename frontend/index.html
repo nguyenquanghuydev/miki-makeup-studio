@@ -133,7 +133,7 @@
           </div>
         </div>
         <div style="position:relative;aspect-ratio:4/5;overflow:hidden;background:#eceae6;">
-          <img id="img-hero" src="https://images.unsplash.com/photo-1653641621097-d25366c2c6a4?fm=jpg&q=75&w=1100&auto=format&fit=crop" alt="Look chủ đạo" style="width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.03);" />
+          <img id="img-hero" data-default="https://images.unsplash.com/photo-1653641621097-d25366c2c6a4?fm=jpg&q=75&w=1100&auto=format&fit=crop" alt="Look chủ đạo" style="width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.03);" />
         </div>
       </section>
 
@@ -148,7 +148,7 @@
       <!-- about artist -->
       <section data-r="g2" style="max-width:1280px;margin:0 auto;padding:100px 32px;display:grid;grid-template-columns:0.9fr 1.1fr;gap:64px;align-items:center;">
         <div style="position:relative;aspect-ratio:3/4;overflow:hidden;background:#eceae6;">
-          <img id="img-artist" src="https://images.unsplash.com/photo-1758613655900-61957c2aca5d?fm=jpg&q=75&w=900&auto=format&fit=crop" alt="Miki Tran" style="width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.03);" />
+          <img id="img-artist" data-default="https://images.unsplash.com/photo-1758613655900-61957c2aca5d?fm=jpg&q=75&w=900&auto=format&fit=crop" alt="Miki Tran" style="width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.03);" />
         </div>
         <div>
           <div style="font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:#8a8784;margin-bottom:22px;">Makeup Artist</div>
@@ -267,7 +267,7 @@
     <div data-page="products" style="display:none;animation:mkfade .5s ease both;">
       <section style="max-width:1280px;margin:0 auto;padding:44px 32px 36px;">
         <div style="position:relative;aspect-ratio:24/8;overflow:hidden;background:#141414;margin-bottom:30px;">
-          <img id="img-prodcover" src="https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?fm=jpg&q=75&w=1600&auto=format&fit=crop" alt="Sản phẩm" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05);opacity:.62;" />
+          <img id="img-prodcover" data-default="https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?fm=jpg&q=75&w=1600&auto=format&fit=crop" alt="Sản phẩm" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05);opacity:.62;" />
           <div style="position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:38px 40px;">
             <div style="font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:#d8d5d0;margin-bottom:14px;">Cửa hàng</div>
             <h1 data-r="h1" style="font-family:'Playfair Display',serif;font-weight:500;font-size:60px;line-height:1;margin:0;color:#fff;">Sản phẩm</h1>
@@ -997,12 +997,15 @@ function applySettings(){
 }
 
 function applyImageOverrides(ov){
-  ov = ov || lsGet('miki-img-overrides') || {};
+  ov = ov || window.__mikiImages || lsGet('miki-img-overrides') || {};
   [['hero','img-hero'],['artist','img-artist'],['prodcover','img-prodcover']].forEach(function(pair){
-    if (ov[pair[0]]){
-      var el = document.getElementById(pair[1]);
-      if (el){ el.src = ov[pair[0]]; el.style.filter = 'none'; }
-    }
+    var el = document.getElementById(pair[1]);
+    if (!el) return;
+    var override = ov[pair[0]];
+    // Đặt src đúng NGAY (override nếu có, không thì ảnh mặc định) → chỉ tải 1 ảnh, không nháy.
+    var next = override || el.getAttribute('data-default') || '';
+    if (el.getAttribute('src') !== next) el.src = next;
+    el.style.filter = override ? 'none' : (el.getAttribute('data-filter') || el.style.filter);
   });
 }
 
@@ -1015,10 +1018,10 @@ function rerenderAll(imagesObj){
 
 /* Load published content from Supabase (source of truth when configured). */
 async function loadFromBackend(){
-  if (!SB) return;
+  if (!SB) return false;
   try {
     var res = await SB.from('site_content').select('key,data');
-    if (res.error || !res.data) return;
+    if (res.error || !res.data) return false;
     var m = {}; res.data.forEach(function(r){ m[r.key] = r.data; });
     if (Array.isArray(m.products) && m.products.length) allProducts = m.products.map(function(p, i){
       return {
@@ -1033,39 +1036,49 @@ async function loadFromBackend(){
     if (Array.isArray(m.testimonials)) testimonials = m.testimonials;
     if (m.settings && typeof m.settings === 'object') settings = Object.assign({}, settings, m.settings);
     window.__mikiImages = (m.images && typeof m.images === 'object') ? m.images : {};
-    rerenderAll(window.__mikiImages);
-  } catch(e){ /* keep defaults on failure */ }
+    return true;
+  } catch(e){ return false; }
 }
 
 /* ======================= INIT ======================= */
-syncFromAdmin();
-renderServicePreview();
-renderGallery();
-renderCategoryTiles();
-renderFaq();
-renderTestimonials();
-renderPricing();
-renderCategoryChips();
-renderProducts();
-renderTrainingTracks();
-renderTrainingCourses();
-applySettings();
-applyImageOverrides();
-updateCartBadge();
-go('home');
-
-if (SB){
-  // fetch latest from the cloud, then keep it live
-  loadFromBackend();
-  SB.channel('miki-content')
-    .on('postgres_changes', { event:'*', schema:'public', table:'site_content' }, loadFromBackend)
-    .subscribe();
-} else {
-  // offline mode: live-update when admin changes data in another tab (same browser)
-  window.addEventListener('storage', function(e){
-    if (e.key && e.key.indexOf('miki-') === 0){ syncFromAdmin(); rerenderAll(); }
-  });
+function renderAll(){
+  renderServicePreview();
+  renderGallery();
+  renderCategoryTiles();
+  renderFaq();
+  renderTestimonials();
+  renderPricing();
+  renderCategoryChips();
+  renderProducts();
+  renderTrainingTracks();
+  renderTrainingCourses();
+  applySettings();
+  applyImageOverrides();
+  updateCartBadge();
 }
+
+// Tải dữ liệu backend TRƯỚC (cùng origin nên nhanh), rồi render 1 lần → không nháy, không tải ảnh mặc định thừa.
+(async function boot(){
+  syncFromAdmin(); // fallback cục bộ (offline)
+  if (SB){
+    try { await Promise.race([ loadFromBackend(), new Promise(function(r){ setTimeout(r, 2500); }) ]); } catch(e){}
+  }
+  renderAll();
+  go('home');
+
+  if (SB){
+    // giữ đồng bộ realtime (polling): fetch lại rồi render phần động, KHÔNG reset về trang chủ
+    SB.channel('miki-content')
+      .on('postgres_changes', { event:'*', schema:'public', table:'site_content' }, function(){
+        loadFromBackend().then(function(){ rerenderAll(); });
+      })
+      .subscribe();
+  } else {
+    window.addEventListener('storage', function(e){
+      if (e.key && e.key.indexOf('miki-') === 0){ syncFromAdmin(); rerenderAll(); }
+    });
+  }
+})();
 </script>
 </body>
 </html>
